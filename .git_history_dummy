@@ -2,3 +2,4 @@ Update at 2026-03-02T06:12:31.000Z: Improve security of API endpoints
 Update at 2026-03-02T09:01:16.000Z: Add support for more image formats
 Update at 2026-03-02T09:03:34.000Z: Improve logging for backend errors
 Update at 2026-03-02T09:14:10.000Z: Implement signature storage logic
+Update at 2026-03-02T10:04:50.000Z: Fix Word to PDF conversion alignment
