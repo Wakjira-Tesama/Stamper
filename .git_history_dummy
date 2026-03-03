@@ -10,3 +10,4 @@ Update at 2026-03-02T14:33:17.000Z: Add export to PNG feature
 Update at 2026-03-02T16:40:51.000Z: Optimize bundle size for faster loading
 Update at 2026-03-02T17:38:05.000Z: Add search functionality to signature library
 Update at 2026-03-03T11:31:59.000Z: Improve OCR accuracy for handwritten signatures
+Update at 2026-03-03T11:48:39.000Z: Improve performance of PDF rendering
