@@ -38,3 +38,4 @@ Update at 2026-03-05T09:37:32.000Z: Add confirmation dialogs for deletions
 Update at 2026-03-05T09:41:19.000Z: Add persistent signature library feature
 Update at 2026-03-05T10:19:22.000Z: Improve error handling for file uploads
 Update at 2026-03-05T10:33:17.000Z: Add glassmorphism effects to sidebar
+Update at 2026-03-05T10:44:17.000Z: Fix layout issues on mobile devices
