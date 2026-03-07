@@ -55,3 +55,4 @@ Update at 2026-03-06T14:13:14.000Z: Fix bug in signature scaling
 Update at 2026-03-06T14:23:00.000Z: Add tooltips for better UX
 Update at 2026-03-06T14:37:22.000Z: Fix accessibility issues in forms
 Update at 2026-03-06T16:18:53.000Z: Add messaging system between staff and admin
+Update at 2026-03-07T08:28:28.000Z: Fix memory leak in Dashboard
