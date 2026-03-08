@@ -21,7 +21,7 @@ import {
 } from '@/lib/documentProcessor';
 import { saveStamp, getSavedStamps, deleteStamp, dataUrlToFile, type SavedStamp } from '@/lib/stampStorage';
 import { saveSignature, getSavedSignatures, deleteSignature, dataUrlToFile as sigDataUrlToFile, type SavedSignature } from '@/lib/signatureStorage';
-import { addHistoryEntry, getHistory, type HistoryEntry } from '@/lib/historyStorage';
+import { addHistoryEntry, getHistory, deleteHistoryEntry, type HistoryEntry } from '@/lib/historyStorage';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -34,13 +34,13 @@ const Dashboard = () => {
   const [stampPosition, setStampPosition] = useState('bottom-right');
   const [stampOpacity, setStampOpacity] = useState([0.7]);
   const [stampRotation, setStampRotation] = useState([0]);
-  const [stampSize, setStampSize] = useState([100]);
+  const [stampSize, setStampSize] = useState([135]);
   const [stamping, setStamping] = useState(false);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
-  const [signPosition, setSignPosition] = useState('bottom-right');
+  const [signPosition, setSignPosition] = useState('bottom-center');
   const [signOpacity, setSignOpacity] = useState([0.9]);
   const [signRotation, setSignRotation] = useState([0]);
-  const [signSize, setSignSize] = useState([120]);
+  const [signSize, setSignSize] = useState([65]);
   const [signPages, setSignPages] = useState('all');
 
   // Share state
@@ -114,6 +114,7 @@ const Dashboard = () => {
         date: new Date().toISOString(),
         stampName: stampImage.name,
         signatureName: signatureFile?.name,
+        blob: blob,
       });
       await refreshHistory();
     } catch (err) {
@@ -170,42 +171,58 @@ const Dashboard = () => {
   };
 
 
-  const shareFile = (method: string) => {
-    if (!lastStampedBlob) return;
-    const name = encodeURIComponent(lastStampedName);
-    const msg = encodeURIComponent(`Here is the stamped document: ${lastStampedName}`);
+  const shareFile = async (item: string | HistoryEntry) => {
+    let blob: Blob | null = null;
+    let name: string = '';
 
-    switch (method) {
-      case 'email': {
-        const subject = encodeURIComponent(`Stamped Document: ${lastStampedName}`);
-        const body = encodeURIComponent(`Please find the stamped document attached.\n\nNote: The file "${lastStampedName}" has been downloaded. Please attach it manually.`);
-        window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
-        toast.info('Email client opened. Attach the downloaded file.');
-        break;
+    if (typeof item === 'string') {
+      if (!lastStampedBlob) return;
+      blob = lastStampedBlob;
+      name = lastStampedName;
+    } else {
+      if (!item.blob) {
+        toast.error('File not found in history');
+        return;
       }
-      case 'telegram':
-        window.open(`https://t.me/share/url?url=${encodeURIComponent(' ')}&text=${msg}`, '_blank');
-        toast.info('Telegram opened.');
-        break;
-      case 'whatsapp':
-        window.open(`https://wa.me/?text=${msg}`, '_blank');
-        toast.info('WhatsApp opened.');
-        break;
-      case 'sms':
-        window.open(`sms:?body=${msg}`, '_blank');
-        toast.info('SMS opened.');
-        break;
-      case 'system':
-        if (navigator.share) {
-          const file = new File([lastStampedBlob], lastStampedName, { type: 'application/pdf' });
-          navigator.share({ files: [file], title: lastStampedName }).catch(() => {
-            toast.error('Sharing cancelled');
-          });
-        } else {
-          toast.error('Web Share not supported in this browser');
-        }
-        break;
+      blob = item.blob;
+      name = item.outputName;
     }
+
+    const file = new File([blob], name, { type: 'application/pdf' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: name,
+          text: 'Here is the stamped document.',
+        });
+        toast.success('Successfully shared!');
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          toast.error('Sharing failed or was cancelled.');
+        }
+      }
+    } else {
+      toast.error('Your browser or device does not support native file sharing. Please download the file and attach it manually.');
+      
+      if (typeof item === 'string' || (item as any).method === 'email') {
+        const subject = encodeURIComponent(`Stamped Document: ${name}`);
+        const body = encodeURIComponent(`Please find the stamped document attached.\n\nNote: Because of browser security, we cannot attach the file automatically. Please attach the downloaded file "${name}" manually.`);
+        window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+      }
+    }
+  };
+
+  const handleOpenHistoryFile = (item: HistoryEntry) => {
+    if (!item.blob) {
+      toast.error('File not found in history');
+      return;
+    }
+    const url = URL.createObjectURL(item.blob);
+    window.open(url, '_blank');
+    // We don't revoke immediately because the tab needs it, 
+    // but in a production app we'd want to manage these URLs.
   };
 
   const onDrop = useCallback((setter: (f: File) => void) => (e: React.DragEvent) => {
@@ -225,8 +242,8 @@ const Dashboard = () => {
       <nav className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-3 px-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <Shield className="h-4.5 w-4.5 text-primary-foreground" />
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center overflow-hidden">
+              <img src="/logo.png" alt="Rabuma Logo" className="h-full w-full object-contain" />
             </div>
             <span className="text-lg font-display font-bold tracking-tight">Rabuma</span>
           </Link>
@@ -584,9 +601,24 @@ const Dashboard = () => {
                       </Button>
                     </div>
 
-                    <Button variant="outline" className="w-full gap-2" onClick={() => { downloadBlob(lastStampedBlob!, lastStampedName); }}>
-                      <Download className="h-4 w-4" /> Download Again
-                    </Button>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1 gap-2" onClick={() => { downloadBlob(lastStampedBlob!, lastStampedName); }}>
+                        <Download className="h-4 w-4" /> Download Again
+                      </Button>
+                      <Button variant="outline" className="flex-1 gap-2" onClick={() => {
+                        const url = URL.createObjectURL(lastStampedBlob!);
+                        window.open(url, '_blank');
+                      }}>
+                        <FileCheck className="h-4 w-4" /> Open
+                      </Button>
+                      <Button variant="outline" className="flex-1 gap-2 text-destructive border-destructive hover:bg-destructive/10" onClick={() => {
+                        setLastStampedBlob(null);
+                        setLastStampedName('');
+                        toast.success('Cleared from share tab');
+                      }}>
+                        <Trash2 className="h-4 w-4" /> Clear
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -634,6 +666,11 @@ const Dashboard = () => {
                               {item.signatureName && <span>• sig: {item.signatureName}</span>}
                             </div>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs gap-1" onClick={() => handleOpenHistoryFile(item)}>
+                            <FileCheck className="h-3 w-3" /> Open
+                          </Button>
                         </div>
                       </motion.div>
                     ))}

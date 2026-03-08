@@ -15,6 +15,7 @@ export interface HistoryEntry {
   date: string;
   stampName?: string;
   signatureName?: string;
+  blob?: Blob;
 }
 
 function openDB(): Promise<IDBDatabase> {

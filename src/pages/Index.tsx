@@ -46,8 +46,8 @@ const Index = () => {
       <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg gradient-primary flex items-center justify-center">
-              <Shield className="h-4 w-4 text-primary-foreground" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center overflow-hidden">
+              <img src="/logo.png" alt="Rabuma Logo" className="h-full w-full object-contain" />
             </div>
             <span className="text-xl font-display font-bold">Rabuma</span>
           </Link>

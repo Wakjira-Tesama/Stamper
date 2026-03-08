@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -11,6 +12,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  sendOtp: (email: string) => Promise<string | null>;
+  resetPassword: (email: string, newPassword: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -37,8 +40,8 @@ interface StoredUser {
 
 // Seed default admin account
 async function ensureDefaultUser() {
-  const SEED_EMAIL = 'admin@rabuma.com';
-  const SEED_PASSWORD = 'Rabuma@2024';
+  const SEED_EMAIL = 'rabuma54@gmail.com';
+  const SEED_PASSWORD = 'Rabuma@Z123';
   const SEED_NAME = 'Rabuma Admin';
 
   try {
@@ -122,13 +125,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const sendOtp = async (email: string): Promise<string | null> => {
+    if (email !== 'rabuma54@gmail.com') return null;
+    
+    // In a real app we'd send an email here.
+    // We'll generate a hardcoded 6-digit OTP for testing/demo purposes.
+    const otp = "123456"; 
+    // Usually we save this to a DB table of otps. 
+    // Here we'll just mock it and save temporarily if needed, though for local dev testing we can just expect '123456'.
+    toast?.('An OTP has been sent to your email (Mock OTP: 123456)'); // Note, won't show real toast without provider, but logic is sound
+    return otp;
+  };
+
+  const resetPassword = async (email: string, newPassword: string): Promise<boolean> => {
+    if (email !== 'rabuma54@gmail.com') return false;
+    
+    // Hardcode rule: We just "reset" it but the login function is hardcoded to Rabuma@Z123. 
+    // To actually support changing password, we need to remove the hardcoded check from login method 
+    // and rely on local storage instead.
+    
+    // Let's update local storage user
+    const users = getUsers();
+    const userIndex = users.findIndex(u => u.email === email);
+    if (userIndex === -1) return false;
+
+    const newHash = await hashPassword(newPassword);
+    users[userIndex].passwordHash = newHash;
+    localStorage.setItem('ss_users', JSON.stringify(users));
+    
+    return true;
+  };
+
+  // Modify the login to actually check local storage hash again, instead of hardcoding the check, 
+  // so the changed password can actually be used. 
   const login = async (email: string, password: string): Promise<boolean> => {
+    if (email !== 'rabuma54@gmail.com') return false;
+
     const users = getUsers();
     const passwordHash = await hashPassword(password);
     const found = users.find(u => u.email === email && u.passwordHash === passwordHash);
-    if (!found) return false;
-
+    
+    // Fallback if local storage was cleared - allow original password to seed it back
+    if (!found) {
+        if (password === 'Rabuma@Z123') {
+            await ensureDefaultUser();
+            return login(email, password); // retry after seeding
+        }
+        return false;
+    }
+    
     const sessionUser = { id: found.id, email: found.email, name: found.name };
+
     setUser(sessionUser);
     localStorage.setItem('ss_session', JSON.stringify({
       token: generateToken(),
@@ -139,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, sendOtp, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
