@@ -2,6 +2,85 @@ import { parsePageRanges } from './pageRangeParser';
 import { PDFDocument, BlendMode } from 'pdf-lib';
 import mammoth from 'mammoth';
 import { saveAs } from 'file-saver';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Initialize PDF.js worker
+// Using CDN is the most robust way to avoid bundler issues with the web worker in Vite without extra config
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+
+async function rasterizePdfBytes(pdfBytes: Uint8Array): Promise<Uint8Array> {
+  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  
+  const flatDoc = await PDFDocument.create();
+  
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    // Use scale 2.5 for very high quality rendering
+    const scale = 2.5; 
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    // Set white background
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    
+    // SECURITY: Add subtle noise/grit to further discourage OCR
+    // and make it look like a physical scan
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    for (let j = 0; j < data.length; j += 4) {
+      if (Math.random() < 0.01) { // 1% noise
+        const noise = (Math.random() - 0.5) * 10;
+        data[j] = Math.max(0, Math.min(255, data[j] + noise));     // R
+        data[j+1] = Math.max(0, Math.min(255, data[j+1] + noise)); // G
+        data[j+2] = Math.max(0, Math.min(255, data[j+2] + noise)); // B
+      }
+    }
+    context.putImageData(imageData, 0, 0);
+
+    // Convert canvas to base64 JPEG
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // High quality but slightly compressed to look like a scan
+    const base64Data = dataUrl.split(',')[1];
+    const imgBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const jpgImg = await flatDoc.embedJpg(imgBytes);
+    
+    // Add page with original dimensions (unscaled)
+    const newPage = flatDoc.addPage([viewport.width / scale, viewport.height / scale]);
+    
+    // Add a tiny random rotation (0.1 degrees) to simulate a physical scanner feed
+    // This makes it much harder for software to reverse-engineer as a digital file
+    const tinyRotation = (Math.random() - 0.5) * 0.2;
+    
+    newPage.drawImage(jpgImg, {
+      x: 0,
+      y: 0,
+      width: viewport.width / scale,
+      height: viewport.height / scale,
+      rotate: { type: 'degrees' as any, angle: tinyRotation },
+    });
+  }
+  
+  // Remove all metadata that could reveal internal info
+  flatDoc.setTitle('');
+  flatDoc.setAuthor('');
+  flatDoc.setSubject('');
+  flatDoc.setKeywords([]);
+  flatDoc.setProducer('Rabuma Secure Processing');
+  flatDoc.setCreator('Rabuma Secure Processing');
+  
+  return await flatDoc.save();
+}
 
 export async function convertWordToPdf(file: File): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
@@ -152,16 +231,8 @@ export async function applyStampToPdf(
       });
     }
 
-    // Flatten
-    const flatDoc = await PDFDocument.create();
-    for (let i = 0; i < pdfDoc.getPageCount(); i++) {
-      const [copiedPage] = await flatDoc.copyPages(pdfDoc, [i]);
-      flatDoc.addPage(copiedPage);
-    }
-    flatDoc.setTitle(''); flatDoc.setAuthor(''); flatDoc.setSubject('');
-    flatDoc.setKeywords([]); flatDoc.setProducer('SecureStamp'); flatDoc.setCreator('SecureStamp');
-    const resultBytes = await flatDoc.save();
-    return new Blob([resultBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+    // For PDF stamps, we don't return early anymore. 
+    // We let it fall through to the final rasterization.
   } else if (stampImage.type === 'image/png') {
     stampImg = await pdfDoc.embedPng(stampBytes);
   } else {
@@ -276,29 +347,13 @@ export async function applyStampToPdf(
     }
   }
 
-  // SECURITY: Deep flatten - render each page to a single image layer
-  // This prevents stamp extraction by converting all page content + stamp into a single raster image
-  const flatDoc = await PDFDocument.create();
-  
-  for (let i = 0; i < pdfDoc.getPageCount(); i++) {
-    const srcPage = pdfDoc.getPages()[i];
-    const { width, height } = srcPage.getSize();
-    
-    // Copy entire page (stamp is now merged into content stream)
-    const [copiedPage] = await flatDoc.copyPages(pdfDoc, [i]);
-    flatDoc.addPage(copiedPage);
-  }
-  
-  // Remove all metadata that could reveal stamp info
-  flatDoc.setTitle('');
-  flatDoc.setAuthor('');
-  flatDoc.setSubject('');
-  flatDoc.setKeywords([]);
-  flatDoc.setProducer('SecureStamp');
-  flatDoc.setCreator('SecureStamp');
+  // SECURITY: True rasterization (Deep flatten)
+  // This physically renders each page + stamp into a single raster image using pdfjs-dist
+  // ensuring that the stamp image and original text cannot be extracted or parsed out of the PDF.
+  const intermediateBytes = await pdfDoc.save();
+  const secureBytes = await rasterizePdfBytes(intermediateBytes);
 
-  const resultBytes = await flatDoc.save();
-  return new Blob([resultBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+  return new Blob([secureBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
