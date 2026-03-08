@@ -1,3 +1,4 @@
+const logoUrl = import.meta.env.BASE_URL + "rabuma-logo.png";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -94,7 +95,7 @@ const Login = () => {
           <Link to="/" className="inline-flex items-center gap-2 mb-4">
             <div className="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="Rabuma Logo"
                 className="h-full w-full object-contain"
               />

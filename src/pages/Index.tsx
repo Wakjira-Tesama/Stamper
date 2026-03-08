@@ -1,3 +1,4 @@
+const logoUrl = import.meta.env.BASE_URL + "rabuma-logo.png";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -57,7 +58,7 @@ const Index = () => {
           <Link to="/" className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-lg flex items-center justify-center overflow-hidden">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="Rabuma Logo"
                 className="h-full w-full object-contain"
               />

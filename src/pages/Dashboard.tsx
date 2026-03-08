@@ -1,3 +1,4 @@
+const logoUrl = import.meta.env.BASE_URL + "rabuma-logo.png";
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -308,7 +309,7 @@ const Dashboard = () => {
           <Link to="/" className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl flex items-center justify-center overflow-hidden">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="Rabuma Logo"
                 className="h-full w-full object-contain"
               />
